@@ -56,18 +56,28 @@ C'est une régression supervisée sur des séquences : en entrée, la suite des 
 LSTM : un réseau « à mémoire » qui lit la séquence image par image et retient ce qui est utile. C'est indispensable ici : une position 2D isolée ne permet pas de retrouver la profondeur, c'est la forme de la trajectoire entière qui la révèle (la gravité donne l'échelle, les rebonds sur la table donnent une ancre).
 Bidirectionnel : il lit la trajectoire dans les deux sens, donc la profondeur d'une image s'appuie à la fois sur le passé et sur le futur (par exemple le rebond qui suit). Comme on reconstruit les trajectoires après coup, c'est autorisé, et c'est de loin le plus gros gain mesuré.
 
-### Ce qui est mis en place pour entraîner et optimiser le réseau
+### Entrainement et optimisation du réseau
 
-**Découpage par trajectoire (70 % entraînement / 15 % validation / 15 % test)**	: une trajectoire n'est jamais coupée en deux, et le jeu de test reste réellement « jamais vu ».\
-**Normalisation des entrées et des sorties, calculée sur le jeu d'entraînement uniquement** :	Met x, y, z à la même échelle (sinon x, qui varie sur ±2,9 m, écraserait z) et évite toute fuite d'information vers le test. Les erreurs sont ensuite reconverties en cm.\
-**Longueurs variables : complétion par des zéros (padding) + packing** : Les trajectoires font de 12 à 83 images. Le packing empêche le LSTM de lire les zéros de remplissage, ce qui est crucial en bidirectionnel.\
+**Découpage par trajectoire (70 % entraînement / 15 % validation / 15 % test)**	: une trajectoire n'est jamais coupée en deux, et le jeu de test reste réellement « jamais vu ».
+
+**Normalisation des entrées et des sorties, calculée sur le jeu d'entraînement uniquement** :	Met x, y, z à la même échelle (sinon x, qui varie sur ±2,9 m, écraserait z) et évite toute fuite d'information vers le test. Les erreurs sont ensuite reconverties en cm.
+
+**Longueurs variables : complétion par des zéros (padding) + packing** : Les trajectoires font de 12 à 83 images. Le packing empêche le LSTM de lire les zéros de remplissage, ce qui est crucial en bidirectionnel.
+
 **Perte masquée** :	La MSE ignore les images de remplissage : seules les vraies images comptent dans l'erreur.
-**Une sortie 3D par image** :	Le réseau reconstruit la trajectoire 3D complète, d'où l'on peut ensuite lire les positions utiles (frappe, filet).\
-**Optimiseur Adam** :	Règle le pas de la descente de gradient séparément pour chaque paramètre. Convergence rapide et peu sensible au réglage : bon choix par défaut pour un LSTM.\
-**Gradient clipping** :	Plafonne la taille du gradient à chaque mise à jour pour éviter qu'il n'explose (entraînement qui part en NaN).\
-**Portes du LSTM** : Ce sont elles, et non le clipping, qui limitent le problème inverse, le vanishing gradient (gradient qui s'évanouit sur les séquences longues). C'est la raison d'être d'un LSTM par rapport à un réseau récurrent simple.\
-**Arrêt anticipé (early stopping)** :	On surveille l'erreur sur le jeu de validation : l'entraînement s'arrête quand elle ne progresse plus, et on restaure le meilleur modèle. Protège contre le surapprentissage et économise du temps de calcul.\
-**Baselines** :	Deux références pour juger le réseau : prédire la moyenne, et un réseau sans mémoire qui traite chaque point isolément.\
+
+**Une sortie 3D par image** :	Le réseau reconstruit la trajectoire 3D complète, d'où l'on peut ensuite lire les positions utiles (frappe, filet).
+
+**Optimiseur Adam** :	Règle le pas de la descente de gradient séparément pour chaque paramètre. Convergence rapide et peu sensible au réglage : bon choix par défaut pour un LSTM.
+
+**Gradient clipping** :	Plafonne la taille du gradient à chaque mise à jour pour éviter qu'il n'explose (entraînement qui part en NaN).
+
+**Portes du LSTM** : Ce sont elles, et non le clipping, qui limitent le problème inverse, le vanishing gradient (gradient qui s'évanouit sur les séquences longues). C'est la raison d'être d'un LSTM par rapport à un réseau récurrent simple.
+
+**Arrêt anticipé (early stopping)** :	On surveille l'erreur sur le jeu de validation : l'entraînement s'arrête quand elle ne progresse plus, et on restaure le meilleur modèle. Protège contre le surapprentissage et économise du temps de calcul.
+
+**Baselines** :	Deux références pour juger le réseau : prédire la moyenne, et un réseau sans mémoire qui traite chaque point isolément.
+
 **Test de santé** :	Le réseau doit être capable de sur-apprendre un tout petit lot de trajectoires (erreur ≈ 0). Sinon, c'est qu'il y a un bug, et inutile de régler quoi que ce soit.
 
 ### Choix des hyperparamètres
